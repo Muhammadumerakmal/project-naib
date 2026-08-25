@@ -1,0 +1,44 @@
+{
+  "$comment": "Naib project hooks. Hook handlers receive JSON on stdin (tool_name, tool_input, cwd, session_id). Block an action by exiting with code 2 — the older decision/reason JSON return format is deprecated.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/block_secrets.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/block_destructive.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ruff check --fix . 2>&1 | tail -20"
+          },
+          {
+            "type": "command",
+            "command": "uv run mypy src/ 2>&1 | tail -20"
+          },
+          {
+            "type": "command",
+            "command": "uv run pytest -x -q --timeout=120 2>&1 | tail -25"
+          }
+        ]
+      }
+    ]
+  }
+}
