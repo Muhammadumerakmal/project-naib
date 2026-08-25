@@ -1,0 +1,24 @@
+[
+  {
+    "id": "placeholder-website-basic",
+    "service_name": "[PLACEHOLDER] Basic Website Package",
+    "description": "FAKE DATA. Umer has not supplied the real playbook yet (PLAN.md Phase 1 [YOU]) — replace this file before Phase 4 needs a real proposal.",
+    "scope_template": "FAKE: 5-page marketing site, one round of revisions, no CMS.",
+    "capabilities": ["website-design", "basic-seo"],
+    "price_band_low": 0,
+    "price_band_high": 99999,
+    "currency": "PKR",
+    "is_placeholder": true
+  },
+  {
+    "id": "placeholder-ecommerce-standard",
+    "service_name": "[PLACEHOLDER] Standard E-commerce Build",
+    "description": "FAKE DATA. Umer has not supplied the real playbook yet (PLAN.md Phase 1 [YOU]) — replace this file before Phase 4 needs a real proposal.",
+    "scope_template": "FAKE: Shopify/WooCommerce setup, up to 50 SKUs, one payment gateway.",
+    "capabilities": ["ecommerce-setup", "payment-integration"],
+    "price_band_low": 0,
+    "price_band_high": 199999,
+    "currency": "PKR",
+    "is_placeholder": true
+  }
+]

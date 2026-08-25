@@ -138,21 +138,6 @@ class AgentEvent(SQLModel, table=True):
     )
 
 
-class Session(SQLModel, table=True):
-    """Backs the SDK's PostgresSession, keyed per lead thread."""
-
-    __tablename__ = "sessions"
-
-    id: uuid.UUID = Field(default_factory=_uuid, primary_key=True)
-    lead_id: uuid.UUID = Field(foreign_key="leads.id", unique=True)
-    items: list[dict[str, Any]] = Field(
-        default_factory=list, sa_column=Column(JSONB)
-    )  # why: JSONB, raw SDK session items
-    updated_at: datetime = Field(
-        default_factory=_now, sa_column=_tz_datetime_column(nullable=False)
-    )
-
-
 class Escalation(SQLModel, table=True):
     __tablename__ = "escalations"
 
