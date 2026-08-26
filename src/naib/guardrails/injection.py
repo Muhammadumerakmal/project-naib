@@ -9,6 +9,11 @@ per docs/EVALS.md's red-team suite.
 
 import re
 import unicodedata
+from typing import Any  # why: guardrail is context-agnostic, must bind to any agent's TContext
+
+from agents import GuardrailFunctionOutput, InputGuardrail, RunContextWrapper
+from agents.agent import Agent
+from agents.items import TResponseInputItem
 
 from naib.schemas.injection_scan_result import InjectionScanResult
 
@@ -114,3 +119,40 @@ def wrap_untrusted(text: str, source: str) -> str:
         f"{text}\n"
         f"{UNTRUSTED_DELIMITER}"
     )
+
+
+def _strip_legitimate_wrapper(text: str) -> str:
+    """This guardrail scans the *wrapped* agent input (the SDK hands it
+    whatever was passed to `Runner.run`, already normalized), but
+    `wrap_untrusted` itself legitimately contains `UNTRUSTED_DELIMITER`
+    twice — scanning the wrapped text unmodified would make
+    `_has_delimiter_escape` trip on every single run. Removing exactly the
+    first two occurrences strips our own wrapper; a third occurrence (an
+    attacker embedding a fake delimiter inside their raw message) survives
+    this strip and still trips `scan_for_injection` below."""
+
+    return text.replace(UNTRUSTED_DELIMITER, "", 2)
+
+
+async def _injection_scan(
+    ctx: RunContextWrapper[Any],
+    agent: Agent[Any],
+    agent_input: str | list[TResponseInputItem],
+) -> GuardrailFunctionOutput:
+    """Input-guardrail wrapper around `scan_for_injection`, run on the first
+    agent in every pipeline run. Also registered as a tool guardrail on any
+    tool that reads external content once such tools exist (Phase 3's
+    `fetch_page`) — see docs/ARCHITECTURE.md: input guardrails alone miss a
+    poisoned page fetched mid-run."""
+
+    text = agent_input if isinstance(agent_input, str) else str(agent_input)
+    result = scan_for_injection(_strip_legitimate_wrapper(text))
+    return GuardrailFunctionOutput(
+        output_info={"matched_patterns": result.matched_patterns, "reason": result.reason},
+        tripwire_triggered=result.flagged,
+    )
+
+
+injection_input_guardrail = InputGuardrail(
+    guardrail_function=_injection_scan, name="injection_scan"
+)

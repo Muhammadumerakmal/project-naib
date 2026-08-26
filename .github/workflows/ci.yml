@@ -6,6 +6,7 @@ on:
 
 env:
   DATABASE_URL: postgresql+asyncpg://naib:naib@localhost:5432/naib
+  REDIS_URL: redis://localhost:6379/0
 
 jobs:
   ci:
@@ -22,6 +23,16 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U naib"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
