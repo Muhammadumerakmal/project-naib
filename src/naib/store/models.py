@@ -48,6 +48,10 @@ class Client(SQLModel, table=True):
     playbook_version: str
     price_floor: int = 0
     autonomy_level: str = "draft_only"
+    # Per-client kill switch (docs/ARCHITECTURE.md: "halts all runs for a
+    # client instantly, mid-queue"). Phase 7 makes the dashboard button
+    # real; Phase 8 owns testing it under production conditions.
+    kill_switch: bool = False
 
 
 class Lead(SQLModel, table=True):

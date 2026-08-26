@@ -25,6 +25,11 @@ async def request_approval(*, entity_type: str, entity_id: uuid.UUID, action: st
     return approval
 
 
+async def get_approval(approval_id: uuid.UUID) -> Approval | None:
+    async with get_sessionmaker()() as session:
+        return await session.get(Approval, approval_id)
+
+
 async def list_pending(entity_type: str | None = None) -> list[Approval]:
     stmt = select(Approval).where(Approval.decided_at.is_(None))  # type: ignore[union-attr]
     if entity_type is not None:

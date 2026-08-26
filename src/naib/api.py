@@ -17,6 +17,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlmodel import select
 
+from naib.dashboard_api import router as dashboard_router
 from naib.settings import get_settings
 from naib.store.db import get_sessionmaker
 from naib.store.models import Client, Lead
@@ -41,6 +42,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Naib", lifespan=_lifespan)
+app.include_router(dashboard_router)
 
 
 class InboundMessage(BaseModel):

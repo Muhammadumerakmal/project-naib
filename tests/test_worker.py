@@ -190,3 +190,63 @@ async def test_route_qualified_lead_escalates_instead_of_drafting_when_flagged(
     assert status == "escalated:qualifier_flagged"
     assert escalation_called["lead_id"] == lead.id
     assert escalation_called["reason"] == "qualifier_flagged"
+
+
+async def _make_client_with_kill_switch(*, enabled: bool) -> Client:
+    async with get_sessionmaker()() as session:
+        client = Client(
+            name="Kill Switch Test Agency",
+            plan="pilot",
+            playbook_version="v0",
+            kill_switch=enabled,
+        )
+        session.add(client)
+        await session.commit()
+        await session.refresh(client)
+    return client
+
+
+async def test_process_lead_halts_when_kill_switch_is_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = await _make_client_with_kill_switch(enabled=True)
+
+    async with get_sessionmaker()() as session:
+        lead = Lead(client_id=client.id, channel="email", raw_hash="kill-switch-test")
+        session.add(lead)
+        await session.commit()
+        await session.refresh(lead)
+
+    async def _boom(**kwargs: object) -> object:
+        raise AssertionError("run_intake_qualifier should not run while kill_switch is active")
+
+    monkeypatch.setattr(worker_module, "run_intake_qualifier", _boom)
+
+    status = await worker_module.process_lead({}, str(lead.id), str(client.id), "hi", "email")
+
+    assert status == "halted:kill_switch"
+
+
+async def test_process_lead_proceeds_when_kill_switch_is_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = await _make_client_with_kill_switch(enabled=False)
+
+    async with get_sessionmaker()() as session:
+        lead = Lead(client_id=client.id, channel="email", raw_hash="kill-switch-off-test")
+        session.add(lead)
+        await session.commit()
+        await session.refresh(lead)
+
+    called = {"ran": False}
+
+    async def _fake_run_intake_qualifier(**kwargs: object) -> QualificationResult:
+        called["ran"] = True
+        return _qualification(qualified=False)
+
+    monkeypatch.setattr(worker_module, "run_intake_qualifier", _fake_run_intake_qualifier)
+
+    status = await worker_module.process_lead({}, str(lead.id), str(client.id), "hi", "email")
+
+    assert called["ran"] is True
+    assert status.startswith("qualified:False")

@@ -20,9 +20,19 @@ from naib.schemas.normalized_lead import NormalizedLead
 from naib.schemas.qualification_result import QualificationResult
 from naib.settings import get_settings
 from naib.store.db import get_sessionmaker
-from naib.store.models import Client, Escalation, Lead
+from naib.store.models import Client, Escalation, Lead, Proposal
 from naib.voice.pipeline import run_voice_pipeline
 from naib.voice.transcription import OpenAIWhisperTranscriber
+
+
+def _kill_switch_active(client: Client) -> bool:
+    """docs/ARCHITECTURE.md: 'halts all runs for a client instantly,
+    mid-queue.' Checked at the top of every job entry point, before any
+    agent runs — a queued job that hasn't started yet simply never starts.
+    Phase 7 makes the dashboard button real; Phase 8 owns production
+    testing of it."""
+
+    return client.kill_switch
 
 
 async def _escalate_on_tripwire(lead_id: str, guardrail_name: str, *, stage: str) -> str:
@@ -112,6 +122,9 @@ async def process_lead(
             await session.exec(select(Client).where(Client.id == uuid.UUID(client_id)))
         ).one()
 
+    if _kill_switch_active(client):
+        return "halted:kill_switch"
+
     try:
         qualification = await run_intake_qualifier(
             lead_id=uuid.UUID(lead_id), client=client, raw_text=raw_text, channel=channel
@@ -135,6 +148,9 @@ async def process_voice_lead(
             await session.exec(select(Client).where(Client.id == uuid.UUID(client_id)))
         ).one()
 
+    if _kill_switch_active(client):
+        return "halted:kill_switch"
+
     try:
         qualification = await run_voice_pipeline(
             lead_id=uuid.UUID(lead_id),
@@ -154,6 +170,16 @@ async def process_followup(ctx: dict[str, Any], proposal_id: str) -> str:
     proposal. Gated by naib.agents.followup_pipeline's exhaustion rules —
     this function does not decide eligibility, `scan_for_due_followups`
     (the cron job below) already did."""
+
+    async with get_sessionmaker()() as session:
+        proposal = (
+            await session.exec(select(Proposal).where(Proposal.id == uuid.UUID(proposal_id)))
+        ).one()
+        lead = (await session.exec(select(Lead).where(Lead.id == proposal.lead_id))).one()
+        client = (await session.exec(select(Client).where(Client.id == lead.client_id))).one()
+
+    if _kill_switch_active(client):
+        return "halted:kill_switch"
 
     followup = await run_followup_pipeline(proposal_id=uuid.UUID(proposal_id))
     return f"followup:{followup.attempt_number}"
