@@ -7,20 +7,24 @@ a lead actually runs through the pipeline.
 import uuid
 from typing import Any
 
-from agents import InputGuardrailTripwireTriggered
+from agents import InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered
 from arq.connections import RedisSettings
 from sqlmodel import select
 
 from naib.agents.pipeline import run_intake_qualifier
+from naib.agents.proposal_pipeline import run_proposal_pipeline
+from naib.schemas.normalized_lead import NormalizedLead
+from naib.schemas.qualification_result import QualificationResult
 from naib.settings import get_settings
 from naib.store.db import get_sessionmaker
-from naib.store.models import Client, Escalation
+from naib.store.models import Client, Escalation, Lead
 from naib.voice.pipeline import run_voice_pipeline
 from naib.voice.transcription import OpenAIWhisperTranscriber
 
 
-async def _escalate_on_tripwire(lead_id: str, exc: InputGuardrailTripwireTriggered) -> str:
-    guardrail_name = exc.guardrail_result.guardrail.get_name()
+async def _escalate_on_tripwire(
+    lead_id: str, guardrail_name: str, *, stage: str
+) -> str:
     async with get_sessionmaker()() as session:
         session.add(
             Escalation(
@@ -28,9 +32,8 @@ async def _escalate_on_tripwire(lead_id: str, exc: InputGuardrailTripwireTrigger
                 reason=f"guardrail_tripwire:{guardrail_name}",
                 brief_md=(
                     f"# Escalation — guardrail tripwire\n\n"
-                    f"`{guardrail_name}` tripped on this inbound message before it reached "
-                    f"a qualification decision. No agent read past the guardrail boundary. "
-                    f"A human needs to read the original message directly."
+                    f"`{guardrail_name}` tripped during {stage}. A human needs to "
+                    f"read the original message directly."
                 ),
             )
         )
@@ -38,12 +41,41 @@ async def _escalate_on_tripwire(lead_id: str, exc: InputGuardrailTripwireTrigger
     return f"escalated:{guardrail_name}"
 
 
+async def _maybe_draft_proposal(
+    lead_id: str, client: Client, qualification: QualificationResult
+) -> str:
+    """Only qualified leads get a proposal drafted — see
+    docs/ARCHITECTURE.md's job description."""
+
+    if not qualification.qualified:
+        return f"qualified:{qualification.qualified}"
+
+    async with get_sessionmaker()() as session:
+        lead = (await session.exec(select(Lead).where(Lead.id == uuid.UUID(lead_id)))).one()
+    if lead.normalized is None:
+        return f"qualified:{qualification.qualified},no_proposal:missing_normalized_lead"
+
+    try:
+        await run_proposal_pipeline(
+            lead_id=uuid.UUID(lead_id),
+            client=client,
+            normalized_lead=NormalizedLead.model_validate(lead.normalized),
+            qualification=qualification,
+        )
+    except OutputGuardrailTripwireTriggered as exc:
+        guardrail_name = exc.guardrail_result.guardrail.get_name()
+        return await _escalate_on_tripwire(lead_id, guardrail_name, stage="proposal drafting")
+
+    return f"qualified:{qualification.qualified},proposal:drafted"
+
+
 async def process_lead(
     ctx: dict[str, Any], lead_id: str, client_id: str, raw_text: str, channel: str
 ) -> str:
-    """arq job: run one lead through Intake -> Qualifier. Returns a short
-    status string (arq stores job results); the durable record is always the
-    Qualification/Escalation row, not the return value."""
+    """arq job: run one lead through Intake -> Qualifier, then (if
+    qualified) ProposalAgent. Returns a short status string (arq stores job
+    results); the durable record is always the Qualification/Proposal/
+    Escalation row, not the return value."""
 
     async with get_sessionmaker()() as session:
         client = (
@@ -55,16 +87,18 @@ async def process_lead(
             lead_id=uuid.UUID(lead_id), client=client, raw_text=raw_text, channel=channel
         )
     except InputGuardrailTripwireTriggered as exc:
-        return await _escalate_on_tripwire(lead_id, exc)
+        guardrail_name = exc.guardrail_result.guardrail.get_name()
+        return await _escalate_on_tripwire(lead_id, guardrail_name, stage="intake")
 
-    return f"qualified:{qualification.qualified}"
+    return await _maybe_draft_proposal(lead_id, client, qualification)
 
 
 async def process_voice_lead(
     ctx: dict[str, Any], lead_id: str, client_id: str, recording_url: str
 ) -> str:
     """arq job: transcribe a voicemail recording, then run it through the
-    unmodified Intake -> Qualifier pipeline. See PLAN.md Phase 2.5."""
+    unmodified Intake -> Qualifier -> Proposal pipeline. See PLAN.md
+    Phase 2.5."""
 
     async with get_sessionmaker()() as session:
         client = (
@@ -79,9 +113,10 @@ async def process_voice_lead(
             transcriber=OpenAIWhisperTranscriber(),
         )
     except InputGuardrailTripwireTriggered as exc:
-        return await _escalate_on_tripwire(lead_id, exc)
+        guardrail_name = exc.guardrail_result.guardrail.get_name()
+        return await _escalate_on_tripwire(lead_id, guardrail_name, stage="voice intake")
 
-    return f"qualified:{qualification.qualified}"
+    return await _maybe_draft_proposal(lead_id, client, qualification)
 
 
 async def _startup(ctx: dict[str, Any]) -> None:

@@ -29,3 +29,13 @@ def get_playbook_entry(entry_id: str) -> PlaybookEntry:
         if entry.id == entry_id:
             return entry
     raise KeyError(f"No playbook entry with id {entry_id!r}")
+
+
+def render_price_band(entry: PlaybookEntry) -> str:
+    """The one and only canonical price-band string for an entry.
+    ProposalAgent is instructed to always use this (via a tool), never to
+    format a band itself — the `price_floor` output guardrail rejects
+    anything that doesn't match it exactly, so there is no room for the
+    model to compute or interpolate a number (CLAUDE.md rule 4)."""
+
+    return f"{entry.currency} {entry.price_band_low:,} - {entry.currency} {entry.price_band_high:,}"
