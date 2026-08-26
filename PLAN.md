@@ -62,6 +62,42 @@ tools reachable from `IntakeAgent` (assert this in a test, not by reading the co
 
 ---
 
+## Phase 2.5 — Voice as an inbound channel
+
+Added after the Phase 2 golden set was proven, so voice reuses that pipeline instead of
+duplicating it. Scope is deliberately narrow: **inbound only, asynchronous, no AI speaks.**
+A caller hears a static, non-AI greeting and leaves a message — there is no live
+conversational loop, no STT/TTS/interruption handling, and therefore none of the real-time
+guardrail problems a talking agent would introduce. This keeps rule 2 ("no agent sends
+anything") intact by construction: a voice message is just another untrusted document that
+happens to arrive as audio.
+
+**Build**
+- Telephony receiver (e.g. Twilio Voice webhook): answers with a static prompt, records the
+  message, no generated speech
+- `transcribe_voicemail`: recording → text via STT, run before anything touches the
+  transcript
+- `channel="voice"` added alongside the existing `email`/`whatsapp` values on `Lead` /
+  `NormalizedLead` — no schema branching, it rejoins the existing pipeline immediately
+- Transcript is wrapped with the same `wrap_untrusted()` delimiter protocol as email/
+  WhatsApp text and handed to the unmodified `IntakeAgent` — no new privileged surface
+- STT confidence folded into `NormalizedLead.confidence` so a garbled transcription
+  degrades gracefully into escalation instead of a confidently wrong qualification
+- Raw recording retained and linked (URL/hash) on the `agent_events` row for the lead, per
+  rule 3 (reconstructable decisions)
+- **`[YOU]`** 10–20 real or realistic voicemails from your own agency's line, including
+  Roman Urdu / Urdu-accented English — this is the actual risk in this phase (generic STT
+  vendors underperform on this market's accent and code-switching) and it can't be
+  synthesised any more than the Phase 2 golden set could.
+
+**Gate** — An inbound test call is recorded, transcribed, wrapped, and produces a
+`NormalizedLead` that flows through the existing unmodified `QualifierAgent`. Zero new
+privileged tools reachable from the voice path (same assertion style as Phase 2). Transcript
+confidence correctly routes at least one deliberately garbled/accented sample to escalation
+rather than a false-confident qualification.
+
+---
+
 ## Phase 3 — Enrichment and retrieval as tools
 
 **Build**
@@ -179,5 +215,6 @@ generalise the difference. Most agentic products die of premature platform-build
 
 - 40–60 labelled real inbound messages (Phase 2)
 - The real playbook: services, scope templates, price bands, floor (Phase 1)
+- 10–20 real or realistic voicemails, including Roman Urdu / Urdu-accented English (Phase 2.5)
 - Twenty proposal reviews in your own voice (Phase 4)
 - Thirty days of dogfooding, which converts into every proof number you'll ever quote
