@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://naib:naib@localhost:5432/naib"
     redis_url: str = "redis://localhost:6379/0"
 
+    # Phase 2.5 voice channel — Twilio Basic Auth credentials for fetching a
+    # recording before transcription. Empty until a client's Twilio number is
+    # connected at onboarding (Phase 8).
+    twilio_account_sid: str = Field(default="", validation_alias="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: str = Field(default="", validation_alias="TWILIO_AUTH_TOKEN")
+
     # Thresholds
     qualify_confidence_min: float = Field(
         default=0.75, validation_alias="NAIB_QUALIFY_CONFIDENCE_MIN"
