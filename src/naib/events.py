@@ -11,6 +11,9 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+from agents.usage import Usage
+
+from naib.cost import estimate_cost_usd
 from naib.store.db import get_sessionmaker
 from naib.store.models import AgentEvent
 
@@ -68,6 +71,20 @@ async def record_run(
         async with get_sessionmaker()() as session:
             session.add(event)
             await session.commit()
+
+
+def record_usage(record: RunRecord, *, model: str | None, usage: Usage) -> None:
+    """Fill tokens_in/tokens_out/cost_usd on a RunRecord from an SDK
+    `Usage` (e.g. `result.context_wrapper.usage` after `Runner.run`). Every
+    pipeline calls this so `agent_events.cost_usd` is real, not always
+    None — the Phase 6 budget suite (docs/EVALS.md) depends on it."""
+
+    record.model = model
+    record.tokens_in = usage.input_tokens
+    record.tokens_out = usage.output_tokens
+    record.cost_usd = estimate_cost_usd(
+        model, input_tokens=usage.input_tokens, output_tokens=usage.output_tokens
+    )
 
 
 async def record_event(

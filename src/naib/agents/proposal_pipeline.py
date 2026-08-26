@@ -13,7 +13,7 @@ from sqlmodel import select
 from naib.agents.context import NaibContext
 from naib.agents.proposal import build_proposal_agent
 from naib.approvals import Decision, decide_approval, request_approval
-from naib.events import record_run
+from naib.events import record_run, record_usage
 from naib.schemas.normalized_lead import NormalizedLead
 from naib.schemas.proposal_draft import ProposalDraft
 from naib.schemas.qualification_result import QualificationResult
@@ -46,7 +46,8 @@ async def run_proposal_pipeline(
 
     async with record_run(agent="ProposalAgent", lead_id=lead_id) as record:
         result = await Runner.run(agent, lead_summary, context=context)
-        record.model = agent.model if isinstance(agent.model, str) else None
+        model = agent.model if isinstance(agent.model, str) else None
+        record_usage(record, model=model, usage=result.context_wrapper.usage)
         record.payload = {"final_agent": result.last_agent.name}
 
     draft = result.final_output

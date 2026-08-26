@@ -11,7 +11,7 @@ from agents import Runner
 
 from naib.agents.context import NaibContext
 from naib.agents.escalation import build_escalation_agent
-from naib.events import record_run
+from naib.events import record_run, record_usage
 from naib.schemas.escalation_brief import EscalationBrief
 from naib.schemas.normalized_lead import NormalizedLead
 from naib.schemas.qualification_result import QualificationResult
@@ -59,7 +59,8 @@ async def run_escalation_pipeline(
 
     async with record_run(agent="EscalationAgent", lead_id=lead_id) as record:
         result = await Runner.run(agent, lead_summary, context=context)
-        record.model = agent.model if isinstance(agent.model, str) else None
+        model = agent.model if isinstance(agent.model, str) else None
+        record_usage(record, model=model, usage=result.context_wrapper.usage)
 
     brief = result.final_output
     if not isinstance(brief, EscalationBrief):

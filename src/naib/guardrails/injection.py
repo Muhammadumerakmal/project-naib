@@ -46,6 +46,9 @@ _PRICE_PATTERNS = [
     r"quote (exactly|precisely)",
     r"mark (it |this )?(as )?approved",
     r"commit_price",
+    r"yehi quote kar",
+    r"approve kar do",
+    r"budget\s+fix(ed)?\s+hai",
 ]
 
 # Cross-lead data exfiltration attempts.

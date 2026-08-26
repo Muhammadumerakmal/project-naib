@@ -19,7 +19,7 @@ from sqlmodel import select
 from naib.agents.context import NaibContext
 from naib.agents.followup import build_followup_agent
 from naib.approvals import request_approval
-from naib.events import record_run
+from naib.events import record_run, record_usage
 from naib.schemas.followup_draft import FollowUpDraft
 from naib.sessions import PostgresSession
 from naib.settings import get_settings
@@ -93,7 +93,8 @@ async def run_followup_pipeline(*, proposal_id: uuid.UUID) -> FollowUp:
 
     async with record_run(agent="FollowUpAgent", lead_id=lead.id) as record:
         result = await Runner.run(agent, summary, context=context, session=lead_session)
-        record.model = agent.model if isinstance(agent.model, str) else None
+        model = agent.model if isinstance(agent.model, str) else None
+        record_usage(record, model=model, usage=result.context_wrapper.usage)
 
     draft = result.final_output
     if not isinstance(draft, FollowUpDraft):

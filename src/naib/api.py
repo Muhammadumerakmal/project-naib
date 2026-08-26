@@ -20,6 +20,7 @@ from sqlmodel import select
 from naib.settings import get_settings
 from naib.store.db import get_sessionmaker
 from naib.store.models import Client, Lead
+from naib.trace_export import export_signed_trace
 
 # Static, non-AI prompts — Twilio's <Say> is text-to-speech reading a fixed
 # script, not a generated response. See PLAN.md Phase 2.5: "no AI speaks."
@@ -144,3 +145,17 @@ async def voice_recording(
         f"<Response><Say>{_VOICE_FAREWELL}</Say><Hangup/></Response>"
     )
     return Response(content=twiml, media_type="application/xml")
+
+
+@app.get("/leads/{lead_id}/trace")
+async def lead_trace(lead_id: uuid.UUID) -> dict[str, object]:
+    """Signed JSON trace bundle for one lead — PLAN.md Phase 6, CLAUDE.md
+    rule 3: 'if a client asks why did it say that, we answer with a
+    record.' Verify with naib.trace_export.verify_trace."""
+
+    async with get_sessionmaker()() as session:
+        lead = (await session.exec(select(Lead).where(Lead.id == lead_id))).first()
+        if lead is None:
+            raise HTTPException(status_code=404, detail="unknown lead_id")
+
+    return await export_signed_trace(lead_id)

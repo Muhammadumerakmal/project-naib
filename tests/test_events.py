@@ -13,9 +13,10 @@ some work, then reports model/tokens/cost onto the yielded RunRecord.
 import uuid
 
 import pytest
+from agents.usage import Usage
 from sqlmodel import select
 
-from naib.events import RunRecord, record_event, record_run
+from naib.events import RunRecord, record_event, record_run, record_usage
 from naib.store.db import get_sessionmaker
 from naib.store.models import AgentEvent
 
@@ -97,3 +98,17 @@ async def test_record_event_writes_a_tool_subevent_independent_of_the_run_row() 
     assert rows[0].event_type == "tool_call"
     assert rows[0].tool == "fetch_page"
     assert rows[0].payload == {"url": "https://example.com"}
+
+
+def test_record_usage_fills_tokens_and_cost_from_sdk_usage() -> None:
+    record = RunRecord(run_id=uuid.uuid4(), agent="TrivialAgent")
+
+    record_usage(
+        record, model="gpt-4.1-mini", usage=Usage(input_tokens=1000, output_tokens=500)
+    )
+
+    assert record.model == "gpt-4.1-mini"
+    assert record.tokens_in == 1000
+    assert record.tokens_out == 500
+    assert record.cost_usd is not None
+    assert record.cost_usd > 0

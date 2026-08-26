@@ -17,7 +17,7 @@ from naib.agents.intake import build_intake_agent
 from naib.agents.qualifier import build_qualifier_agent
 from naib.agents.retrieval import build_retrieval_agent
 from naib.embeddings import OpenAIEmbedder
-from naib.events import record_run
+from naib.events import record_run, record_usage
 from naib.guardrails.injection import wrap_untrusted
 from naib.guardrails.language_route import detect_language
 from naib.guardrails.pii import redact_pii
@@ -51,7 +51,8 @@ async def run_intake_qualifier(
 
     async with record_run(agent="IntakeAgent", lead_id=lead_id) as record:
         result = await Runner.run(intake_agent, wrapped, context=context, session=session)
-        record.model = intake_agent.model if isinstance(intake_agent.model, str) else None
+        model = intake_agent.model if isinstance(intake_agent.model, str) else None
+        record_usage(record, model=model, usage=result.context_wrapper.usage)
         record.payload = {"final_agent": result.last_agent.name}
 
     qualification = result.final_output

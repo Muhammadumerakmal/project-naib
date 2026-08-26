@@ -43,6 +43,21 @@ class Settings(BaseSettings):
     max_followup_attempts: int = Field(default=3, validation_alias="NAIB_MAX_FOLLOWUP_ATTEMPTS")
     followup_interval_days: int = Field(default=3, validation_alias="NAIB_FOLLOWUP_INTERVAL_DAYS")
 
+    # Phase 6 trace export — HMAC key for the signed per-lead JSON bundle a
+    # client can inspect. Empty in dev; must be set before Phase 8 deploy.
+    trace_export_secret: str = Field(default="", validation_alias="NAIB_TRACE_EXPORT_SECRET")
+
+    # Phase 6 client report — "cost vs. the human hour it displaced" needs a
+    # baseline for what manual intake+qualification would have cost. These
+    # are placeholder estimates, not measured facts — calibrate against
+    # Umer's own numbers during Phase 8 dogfooding.
+    human_minutes_per_lead_baseline: float = Field(
+        default=15.0, validation_alias="NAIB_HUMAN_MINUTES_PER_LEAD_BASELINE"
+    )
+    human_hourly_cost_usd: float = Field(
+        default=10.0, validation_alias="NAIB_HUMAN_HOURLY_COST_USD"
+    )
+
     # Safety. There is deliberately no flag that disables approval in v1 —
     # every send/write/commit tool is needs_approval=True regardless of this.
     kill_switch: bool = Field(default=False, validation_alias="NAIB_KILL_SWITCH")
