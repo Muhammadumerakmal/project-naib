@@ -7,6 +7,7 @@ from sqlmodel import select
 
 from naib import worker as worker_module
 from naib.schemas.qualification_result import QualificationResult
+from naib.settings import get_settings
 from naib.store.db import get_sessionmaker
 from naib.store.models import Client, Escalation, Lead
 
@@ -26,14 +27,16 @@ _NORMALIZED_LEAD_DICT: dict[str, Any] = {
 }
 
 
-def _qualification(*, qualified: bool) -> QualificationResult:
+def _qualification(
+    *, qualified: bool, should_escalate: bool = False, confidence: float = 0.85
+) -> QualificationResult:
     return QualificationResult(
         qualified=qualified,
         score=0.8 if qualified else 0.2,
         band="high" if qualified else "low",
         disqualifiers=[],
-        should_escalate=False,
-        confidence=0.85,
+        should_escalate=should_escalate,
+        confidence=confidence,
         reasons=["test"],
     )
 
@@ -56,24 +59,49 @@ async def _make_client_and_lead(
     return client, lead
 
 
-async def test_maybe_draft_proposal_skips_unqualified_leads(
+def test_escalation_reason_none_for_a_clean_confident_qualification() -> None:
+    assert worker_module._escalation_reason(_qualification(qualified=True)) is None
+
+
+def test_escalation_reason_respects_the_qualifiers_own_flag() -> None:
+    reason = worker_module._escalation_reason(
+        _qualification(qualified=False, should_escalate=True)
+    )
+    assert reason == "qualifier_flagged"
+
+
+def test_escalation_reason_deterministic_backstop_below_confidence_threshold() -> None:
+    """CLAUDE.md rule 6: below threshold -> escalate, even if the model
+    itself didn't set should_escalate."""
+
+    below = get_settings().escalate_below - 0.01
+    reason = worker_module._escalation_reason(
+        _qualification(qualified=True, should_escalate=False, confidence=below)
+    )
+    assert reason is not None
+    assert reason.startswith("confidence_below_threshold")
+
+
+async def test_route_qualified_lead_skips_proposal_for_unqualified_leads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, lead = await _make_client_and_lead("worker-unqualified")
+    client, lead = await _make_client_and_lead(
+        "worker-unqualified", normalized=_NORMALIZED_LEAD_DICT
+    )
 
     async def _boom(**kwargs: object) -> object:
         raise AssertionError("run_proposal_pipeline should not run for an unqualified lead")
 
     monkeypatch.setattr(worker_module, "run_proposal_pipeline", _boom)
 
-    status = await worker_module._maybe_draft_proposal(
+    status = await worker_module._route_qualified_lead(
         str(lead.id), client, _qualification(qualified=False)
     )
 
     assert status == "qualified:False"
 
 
-async def test_maybe_draft_proposal_drafts_for_a_qualified_lead(
+async def test_route_qualified_lead_drafts_a_proposal_for_a_qualified_lead(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, lead = await _make_client_and_lead(
@@ -88,7 +116,7 @@ async def test_maybe_draft_proposal_drafts_for_a_qualified_lead(
 
     monkeypatch.setattr(worker_module, "run_proposal_pipeline", _fake_run_proposal_pipeline)
 
-    status = await worker_module._maybe_draft_proposal(
+    status = await worker_module._route_qualified_lead(
         str(lead.id), client, _qualification(qualified=True)
     )
 
@@ -96,7 +124,7 @@ async def test_maybe_draft_proposal_drafts_for_a_qualified_lead(
     assert called["lead_id"] == lead.id
 
 
-async def test_maybe_draft_proposal_escalates_on_output_guardrail_tripwire(
+async def test_route_qualified_lead_escalates_on_output_guardrail_tripwire(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, lead = await _make_client_and_lead(
@@ -119,7 +147,7 @@ async def test_maybe_draft_proposal_escalates_on_output_guardrail_tripwire(
 
     monkeypatch.setattr(worker_module, "run_proposal_pipeline", _fake_run_proposal_pipeline)
 
-    status = await worker_module._maybe_draft_proposal(
+    status = await worker_module._route_qualified_lead(
         str(lead.id), client, _qualification(qualified=True)
     )
 
@@ -131,3 +159,34 @@ async def test_maybe_draft_proposal_escalates_on_output_guardrail_tripwire(
         ).all()
     assert len(escalations) == 1
     assert "price_floor" in escalations[0].reason
+
+
+async def test_route_qualified_lead_escalates_instead_of_drafting_when_flagged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lead can be qualified=True and still need a human — existing
+    client, legal language, signal conflicts. Escalation must win."""
+
+    client, lead = await _make_client_and_lead(
+        "worker-escalate-over-qualified", normalized=_NORMALIZED_LEAD_DICT
+    )
+
+    async def _boom_proposal(**kwargs: object) -> object:
+        raise AssertionError("run_proposal_pipeline should not run when should_escalate is True")
+
+    escalation_called: dict[str, Any] = {}
+
+    async def _fake_run_escalation_pipeline(**kwargs: object) -> object:
+        escalation_called.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(worker_module, "run_proposal_pipeline", _boom_proposal)
+    monkeypatch.setattr(worker_module, "run_escalation_pipeline", _fake_run_escalation_pipeline)
+
+    status = await worker_module._route_qualified_lead(
+        str(lead.id), client, _qualification(qualified=True, should_escalate=True)
+    )
+
+    assert status == "escalated:qualifier_flagged"
+    assert escalation_called["lead_id"] == lead.id
+    assert escalation_called["reason"] == "qualifier_flagged"

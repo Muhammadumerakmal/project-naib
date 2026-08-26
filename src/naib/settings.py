@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     )
     max_enrichment_calls: int = Field(default=4, validation_alias="NAIB_MAX_ENRICHMENT_CALLS")
 
+    # Phase 5 follow-up cadence — exhaustion rules (PLAN.md: "gated").
+    max_followup_attempts: int = Field(default=3, validation_alias="NAIB_MAX_FOLLOWUP_ATTEMPTS")
+    followup_interval_days: int = Field(default=3, validation_alias="NAIB_FOLLOWUP_INTERVAL_DAYS")
+
     # Safety. There is deliberately no flag that disables approval in v1 —
     # every send/write/commit tool is needs_approval=True regardless of this.
     kill_switch: bool = Field(default=False, validation_alias="NAIB_KILL_SWITCH")

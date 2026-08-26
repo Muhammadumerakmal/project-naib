@@ -190,3 +190,19 @@ class ProposalChunk(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=_now, sa_column=_tz_datetime_column(nullable=False)
     )
+
+
+class FollowUp(SQLModel, table=True):
+    """One drafted follow-up attempt against a proposal awaiting reply.
+    `attempt_number` and `created_at` are what the exhaustion/interval
+    gating in naib.agents.followup_pipeline checks — see PLAN.md Phase 5."""
+
+    __tablename__ = "followups"
+
+    id: uuid.UUID = Field(default_factory=_uuid, primary_key=True)
+    proposal_id: uuid.UUID = Field(foreign_key="proposals.id")
+    attempt_number: int
+    message_md: str
+    created_at: datetime = Field(
+        default_factory=_now, sa_column=_tz_datetime_column(nullable=False)
+    )
