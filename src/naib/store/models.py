@@ -12,9 +12,13 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
+
+# text-embedding-3-small's default output width (naib.embeddings).
+EMBEDDING_DIM = 1536
 
 
 def _uuid() -> uuid.UUID:
@@ -147,6 +151,42 @@ class Escalation(SQLModel, table=True):
     brief_md: str
     assigned_to: str | None = None
     resolved_at: datetime | None = Field(default=None, sa_column=_tz_datetime_column(nullable=True))
+    created_at: datetime = Field(
+        default_factory=_now, sa_column=_tz_datetime_column(nullable=False)
+    )
+
+
+class EnrichmentCache(SQLModel, table=True):
+    """Caches `fetch_page` results per URL so enrichment cannot re-fetch (and
+    re-spend) on every run against the same site — see PLAN.md Phase 3
+    'Caching + budget cap per lead'."""
+
+    __tablename__ = "enrichment_cache"
+
+    id: uuid.UUID = Field(default_factory=_uuid, primary_key=True)
+    cache_key: str = Field(unique=True, index=True)
+    content: str
+    fetched_at: datetime = Field(
+        default_factory=_now, sa_column=_tz_datetime_column(nullable=False)
+    )
+
+
+class ProposalChunk(SQLModel, table=True):
+    """One chunk of a past *won* proposal, chunked by scope section (not
+    arbitrary character count — PLAN.md Phase 3), embedded for
+    `RetrievalAgent`'s pgvector search. `proposal_label` is a human-readable
+    reference (e.g. client + service), not a foreign key — Phase 3 seeds
+    this from synthetic placeholder data since real won proposals don't
+    exist until Phase 4 produces some; see naib.data.won_proposals_seed."""
+
+    __tablename__ = "proposal_chunks"
+
+    id: uuid.UUID = Field(default_factory=_uuid, primary_key=True)
+    proposal_label: str
+    scope_section: str
+    chunk_text: str
+    embedding: list[float] = Field(sa_column=Column(Vector(EMBEDDING_DIM)))
+    is_synthetic: bool = False
     created_at: datetime = Field(
         default_factory=_now, sa_column=_tz_datetime_column(nullable=False)
     )

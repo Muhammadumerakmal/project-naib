@@ -12,16 +12,25 @@ from agents import Agent, Runner
 from agents.testing import ScriptedModel, assistant_message, function_call
 
 from naib.agents.context import NaibContext
+from naib.agents.enrichment import build_enrichment_agent
 from naib.agents.intake import build_intake_agent
 from naib.agents.qualifier import build_qualifier_agent
+from naib.agents.retrieval import build_retrieval_agent
 from naib.guardrails.injection import wrap_untrusted
 from naib.icp import DEFAULT_ICP_CONFIG
 from naib.store.models import Client
 from naib.tools.privileged import PRIVILEGED_TOOL_NAMES
 
 
+class _FakeEmbedder:
+    async def embed(self, text: str) -> list[float]:
+        return [0.0] * 1536
+
+
 def _build_pair() -> tuple[Agent[NaibContext], Agent[NaibContext]]:
-    qualifier_agent = build_qualifier_agent(DEFAULT_ICP_CONFIG)
+    qualifier_agent = build_qualifier_agent(
+        DEFAULT_ICP_CONFIG, build_enrichment_agent(), build_retrieval_agent(_FakeEmbedder())
+    )
     intake_agent = build_intake_agent(qualifier_agent)
     return intake_agent, qualifier_agent
 

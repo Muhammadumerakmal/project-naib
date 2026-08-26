@@ -44,8 +44,12 @@ class _FakeTranscriber:
 
 
 def _wire_scripted_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _build_qualifier(icp_config: object) -> object:
-        agent = build_qualifier_agent(DEFAULT_ICP_CONFIG)
+    def _build_qualifier(
+        icp_config: object, enrichment_agent: object, retrieval_agent: object
+    ) -> object:
+        agent = build_qualifier_agent(
+            DEFAULT_ICP_CONFIG, enrichment_agent, retrieval_agent  # type: ignore[arg-type]
+        )
         agent.model = ScriptedModel(
             [
                 [

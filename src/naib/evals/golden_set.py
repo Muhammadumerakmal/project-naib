@@ -16,8 +16,11 @@ from typing import Literal
 from agents import InputGuardrailTripwireTriggered, Runner
 
 from naib.agents.context import NaibContext
+from naib.agents.enrichment import build_enrichment_agent
 from naib.agents.intake import build_intake_agent
 from naib.agents.qualifier import build_qualifier_agent
+from naib.agents.retrieval import build_retrieval_agent
+from naib.embeddings import OpenAIEmbedder
 from naib.guardrails.injection import wrap_untrusted
 from naib.icp import load_icp_config
 from naib.schemas.golden_record import GoldenRecord
@@ -52,7 +55,11 @@ class GoldenSetMetrics:
 
 
 async def run_golden_set(records: tuple[GoldenRecord, ...], client: Client) -> GoldenSetMetrics:
-    qualifier_agent = build_qualifier_agent(load_icp_config(client.icp_config))
+    qualifier_agent = build_qualifier_agent(
+        load_icp_config(client.icp_config),
+        build_enrichment_agent(),
+        build_retrieval_agent(OpenAIEmbedder()),
+    )
     intake_agent = build_intake_agent(qualifier_agent)
 
     correct_qualification = 0

@@ -19,9 +19,15 @@ from naib.store.db import get_sessionmaker
 from naib.store.models import Client, Lead, Qualification
 
 
-def _wire_scripted_pipeline(monkeypatch: pytest.MonkeyPatch, *, normalized_lead_args: dict) -> None:
-    def _build_qualifier(icp_config: object) -> object:
-        agent = build_qualifier_agent(DEFAULT_ICP_CONFIG)
+def _wire_scripted_pipeline(
+    monkeypatch: pytest.MonkeyPatch, *, normalized_lead_args: dict
+) -> None:
+    def _build_qualifier(
+        icp_config: object, enrichment_agent: object, retrieval_agent: object
+    ) -> object:
+        agent = build_qualifier_agent(
+            DEFAULT_ICP_CONFIG, enrichment_agent, retrieval_agent  # type: ignore[arg-type]
+        )
         agent.model = ScriptedModel(
             [
                 [
@@ -114,8 +120,12 @@ async def test_pipeline_raises_type_error_if_handoff_chain_never_completes(
     final message instead of handing off, we want a loud failure, not a
     silently wrong QualificationResult."""
 
-    def _build_qualifier(icp_config: object) -> object:
-        return build_qualifier_agent(DEFAULT_ICP_CONFIG)
+    def _build_qualifier(
+        icp_config: object, enrichment_agent: object, retrieval_agent: object
+    ) -> object:
+        return build_qualifier_agent(
+            DEFAULT_ICP_CONFIG, enrichment_agent, retrieval_agent  # type: ignore[arg-type]
+        )
 
     def _build_intake(qualifier_agent: object) -> object:
         agent = build_intake_agent(qualifier_agent)  # type: ignore[arg-type]

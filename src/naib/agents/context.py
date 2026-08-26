@@ -18,3 +18,7 @@ class NaibContext:
     lead_id: uuid.UUID
     language: str
     normalized_lead: NormalizedLead | None = None
+    # Phase 3 budget cap: enrichment tools increment this and refuse once it
+    # hits settings.max_enrichment_calls, so enrichment cannot run away with
+    # the cost on one lead. See naib.tools.enrichment_tools.
+    enrichment_calls: int = 0

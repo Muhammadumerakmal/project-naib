@@ -12,8 +12,11 @@ from agents import Runner
 from sqlmodel import select
 
 from naib.agents.context import NaibContext
+from naib.agents.enrichment import build_enrichment_agent
 from naib.agents.intake import build_intake_agent
 from naib.agents.qualifier import build_qualifier_agent
+from naib.agents.retrieval import build_retrieval_agent
+from naib.embeddings import OpenAIEmbedder
 from naib.events import record_run
 from naib.guardrails.injection import wrap_untrusted
 from naib.guardrails.language_route import detect_language
@@ -37,7 +40,11 @@ async def run_intake_qualifier(
     language, _confidence = detect_language(redacted_text)
     wrapped = wrap_untrusted(redacted_text, source=channel)
 
-    qualifier_agent = build_qualifier_agent(load_icp_config(client.icp_config))
+    enrichment_agent = build_enrichment_agent()
+    retrieval_agent = build_retrieval_agent(OpenAIEmbedder())
+    qualifier_agent = build_qualifier_agent(
+        load_icp_config(client.icp_config), enrichment_agent, retrieval_agent
+    )
     intake_agent = build_intake_agent(qualifier_agent)
     context = NaibContext(client=client, lead_id=lead_id, language=language)
     session = PostgresSession(lead_id)

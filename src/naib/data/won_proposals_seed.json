@@ -1,0 +1,12 @@
+[
+  {
+    "proposal_label": "[SYNTHETIC] Bakery ordering site",
+    "is_synthetic": true,
+    "proposal_md": "## Scope: Online ordering\nBuilt a 6-page ordering site for a bakery with a cart, delivery-zone checkout, and WhatsApp order notifications. Menu managed by the client through a simple admin panel, no code changes needed for price updates.\n\n## Scope: Timeline and handoff\nDelivered in 3 weeks. One week of post-launch support, then handed off with a short screen-recording walkthrough instead of a written manual.\n"
+  },
+  {
+    "proposal_label": "[SYNTHETIC] Clinic booking site",
+    "is_synthetic": true,
+    "proposal_md": "## Scope: Appointment booking\nFive-page site for a dental clinic with an appointment request form that emails the front desk and texts the patient a confirmation. No live calendar sync in this phase — that was priced as an add-on the client declined.\n\n## Scope: Content and SEO basics\nWrote on-page copy for all five pages from a phone interview with the dentist, plus basic local-SEO metadata (Google Business Profile linkage, service-area schema).\n"
+  }
+]

@@ -47,7 +47,12 @@ class OpenAIWhisperTranscriber:
         settings = get_settings()
         self._twilio_account_sid = settings.twilio_account_sid
         self._twilio_auth_token = settings.twilio_auth_token
-        self._client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self._client: AsyncOpenAI | None = None
+
+    def _get_client(self) -> AsyncOpenAI:
+        if self._client is None:
+            self._client = AsyncOpenAI(api_key=get_settings().openai_api_key)
+        return self._client
 
     async def transcribe(self, recording_url: str) -> TranscriptionResult:
         async with httpx.AsyncClient() as http_client:
@@ -59,7 +64,7 @@ class OpenAIWhisperTranscriber:
             response.raise_for_status()
             audio_bytes = response.content
 
-        transcription = await self._client.audio.transcriptions.create(
+        transcription = await self._get_client().audio.transcriptions.create(
             file=("recording.wav", audio_bytes),
             model="whisper-1",
             response_format="verbose_json",
