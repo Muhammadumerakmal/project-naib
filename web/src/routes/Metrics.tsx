@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { Loader2 } from "lucide-react"
+import { Loader2, Lock, Unlock } from "lucide-react"
 import { useParams } from "react-router-dom"
 import {
   CartesianGrid,
@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { getClientMetrics } from "../lib/api"
+import { getClientAutonomy, getClientMetrics } from "../lib/api"
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -55,6 +55,38 @@ function ChartCard({
   )
 }
 
+function AutonomyPanel({ clientId }: { clientId: string }) {
+  const { data: statuses } = useQuery({
+    queryKey: ["autonomy", clientId],
+    queryFn: () => getClientAutonomy(clientId),
+  })
+
+  if (!statuses || statuses.length === 0) return null
+
+  return (
+    <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="mb-1 text-sm font-medium text-slate-700">Graduated autonomy</p>
+      <p className="mb-3 text-xs text-slate-400">
+        Earned per action after {statuses[0].window_days} days of clean logs. Nothing sends
+        automatically today regardless of this status — see CLAUDE.md rule 2.
+      </p>
+      <div className="flex flex-col gap-2">
+        {statuses.map((s) => (
+          <div key={s.action} className="flex items-center gap-2 text-sm">
+            {s.eligible ? (
+              <Unlock size={14} className="text-emerald-600" />
+            ) : (
+              <Lock size={14} className="text-slate-400" />
+            )}
+            <span className="font-medium text-slate-800">{s.action}</span>
+            <span className="text-slate-400">{s.reason}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function Metrics() {
   const { clientId = "" } = useParams<{ clientId: string }>()
 
@@ -95,6 +127,8 @@ export function Metrics() {
           valueFormatter={(v) => `$${v.toFixed(3)}`}
         />
       </div>
+
+      <AutonomyPanel clientId={clientId} />
     </div>
   )
 }

@@ -1,0 +1,116 @@
+# Production deploy — PLAN.md Phase 8: "Compose deploy on VPS, backups, log
+# retention, per-client isolation." Layer this ON TOP of docker-compose.yml
+# rather than duplicating it:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Per-client isolation (PLAN.md Phase 9: "do not build multi-tenant
+# abstractions before client two") means one deploy of this stack per
+# client, not one shared stack with client rows — give each client its own
+# .env, its own COMPOSE_PROJECT_NAME, and (recommended) its own VPS or at
+# minimum its own Postgres volume. Nothing in this file assumes otherwise.
+#
+# What this file adds over the dev compose:
+# - restart policies, so a VPS reboot brings the stack back on its own
+# - bounded, rotated JSON logs (dev has unbounded logs — fine on a laptop,
+#   not fine on a VPS with a small disk)
+# - a `backup` sidecar: nightly `pg_dump`, kept 14 days, written to a
+#   volume you should also be syncing off-box (rsync/rclone/etc — this
+#   file only owns "the dump exists locally", not offsite retention)
+# - the app runs both api and worker processes as separate services, since
+#   a VPS with more than one core benefits from them not sharing one
+#   process the way `uvicorn --reload` + an inline worker would in dev
+
+services:
+  postgres:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  redis:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  app:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    command:
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "naib.api:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--workers",
+        "2",
+      ]
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://naib:naib@postgres:5432/naib
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["uv", "run", "arq", "naib.worker.WorkerSettings"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backup:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: naib
+      PGPASSWORD: naib
+      PGDATABASE: naib
+      RETENTION_DAYS: "14"
+    volumes:
+      - naib-postgres-backups:/backups
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        while true; do
+          stamp=$$(date +%Y%m%d-%H%M%S)
+          echo "[backup] starting pg_dump -> /backups/naib-$$stamp.sql.gz"
+          pg_dump --no-owner | gzip > "/backups/naib-$$stamp.sql.gz"
+          find /backups -name 'naib-*.sql.gz' -mtime +$$RETENTION_DAYS -delete
+          echo "[backup] done, sleeping 24h"
+          sleep 86400
+        done
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  naib-postgres-backups:

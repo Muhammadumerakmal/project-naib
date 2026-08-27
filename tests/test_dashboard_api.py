@@ -78,6 +78,21 @@ async def test_list_approvals_and_decide_via_api() -> None:
     assert after.json() == []
 
 
+async def test_get_client_autonomy_via_api() -> None:
+    client, _lead, _proposal = await _make_client_lead_and_proposal()
+
+    async with _lifespan(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http_client:
+            response = await http_client.get(f"/clients/{client.id}/autonomy")
+
+    assert response.status_code == 200
+    body = response.json()
+    actions = {row["action"] for row in body}
+    assert actions == {"commit_price", "send_followup"}
+    assert all(row["eligible"] is False for row in body)
+
+
 async def test_get_client_metrics_via_api() -> None:
     client, _lead, _proposal = await _make_client_lead_and_proposal()
 

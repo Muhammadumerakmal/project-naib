@@ -20,7 +20,9 @@ uv run pytest -m redteam           # injection + jailbreak suite
 uv run ruff check --fix .          # lint
 uv run mypy src/                   # types
 uv run uvicorn naib.api:app --reload
-uv run python -m naib.cli replay <lead_id>   # replay a lead through the pipeline
+uv run python -m naib.cli replay <lead_id>   # re-score a lead's stored normalized data
+uv run python -m naib.cli onboard ...        # onboard a new client (Phase 8)
+uv run python -m naib.cli pack <client_id> --output-dir <dir>   # Defensibility Pack
 ```
 
 ## Non-negotiable rules

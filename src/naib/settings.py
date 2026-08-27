@@ -63,6 +63,17 @@ class Settings(BaseSettings):
     kill_switch: bool = Field(default=False, validation_alias="NAIB_KILL_SWITCH")
     autonomy_level: str = Field(default="draft_only", validation_alias="NAIB_AUTONOMY_LEVEL")
 
+    # Phase 8 graduated autonomy — the bar an action must clear before it's
+    # even a candidate for autonomy (see naib.autonomy). "Clean" per
+    # PLAN.md/CLAUDE.md is deliberately strict by default: zero edits or
+    # rejections across the full window. Raise autonomy_max_edit_rate only
+    # as a considered, disclosed pricing decision — never to make a client
+    # qualify faster.
+    autonomy_window_days: int = Field(default=30, validation_alias="NAIB_AUTONOMY_WINDOW_DAYS")
+    autonomy_max_edit_rate: float = Field(
+        default=0.0, validation_alias="NAIB_AUTONOMY_MAX_EDIT_RATE"
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

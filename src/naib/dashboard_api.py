@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from naib.agents.proposal_pipeline import decide_proposal_approval
 from naib.approvals import Decision, get_approval
+from naib.autonomy import compute_all_autonomy_status
 from naib.dashboard import (
     get_client,
     get_client_metrics,
@@ -19,6 +20,7 @@ from naib.dashboard import (
     set_kill_switch,
 )
 from naib.schemas.approval_summary import ApprovalSummary
+from naib.schemas.autonomy_status import AutonomyStatus
 from naib.schemas.client_metrics import ClientMetrics
 from naib.store.models import Client, Escalation
 
@@ -85,6 +87,14 @@ async def list_escalations(client_id: uuid.UUID) -> list[Escalation]:
 @router.get("/clients/{client_id}/metrics")
 async def client_metrics(client_id: uuid.UUID) -> ClientMetrics:
     return await get_client_metrics(client_id)
+
+
+@router.get("/clients/{client_id}/autonomy")
+async def client_autonomy(client_id: uuid.UUID) -> list[AutonomyStatus]:
+    """Where this client stands on graduated autonomy, per action (PLAN.md
+    Phase 8). Read-only status — nothing here changes what needs_approval."""
+
+    return await compute_all_autonomy_status(client_id)
 
 
 @router.post("/approvals/{approval_id}/decide")

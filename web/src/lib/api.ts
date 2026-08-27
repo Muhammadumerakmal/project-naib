@@ -1,5 +1,6 @@
 import type {
   ApprovalSummary,
+  AutonomyStatus,
   ClientDetail,
   ClientMetrics,
   Decision,
@@ -58,6 +59,10 @@ export function listEscalations(clientId: string): Promise<Escalation[]> {
 
 export function getClientMetrics(clientId: string): Promise<ClientMetrics> {
   return request(`/clients/${clientId}/metrics`)
+}
+
+export function getClientAutonomy(clientId: string): Promise<AutonomyStatus[]> {
+  return request(`/clients/${clientId}/autonomy`)
 }
 
 export function decideApproval(

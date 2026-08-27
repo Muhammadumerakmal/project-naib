@@ -48,6 +48,20 @@ export interface ClientMetrics {
   avg_time_to_first_response_seconds: number | null
 }
 
+export interface AutonomyStatus {
+  client_id: string
+  action: string
+  window_days: number
+  days_tracked: number
+  decided_count: number
+  approved_count: number
+  edited_count: number
+  rejected_count: number
+  edit_or_reject_rate: number
+  eligible: boolean
+  reason: string
+}
+
 export interface TraceQualification {
   score: number
   band: string
