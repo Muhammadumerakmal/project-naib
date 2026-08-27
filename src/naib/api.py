@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 from fastapi import FastAPI, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlmodel import select
@@ -43,6 +44,17 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Naib", lifespan=_lifespan)
 app.include_router(dashboard_router)
+
+# Dev-only CORS: the Phase 7 dashboard is a separate Vite origin
+# (localhost:5173) hitting this API directly. Phase 8's onboarding flow
+# owns per-client origin allowlisting for production; this stays permissive
+# to localhost only until then.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class InboundMessage(BaseModel):
