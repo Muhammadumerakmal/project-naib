@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query"
 import { AlertCircle, Loader2 } from "lucide-react"
-import { useParams } from "react-router-dom"
+import { useOutletContext } from "react-router-dom"
 import { listEscalations } from "../lib/api"
+import type { ClientOutletContext } from "./ClientLayout"
 
 export function Escalations() {
-  const { clientId = "" } = useParams<{ clientId: string }>()
+  const { client, token } = useOutletContext<ClientOutletContext>()
+  const clientId = client.id
 
   const { data: escalations, isLoading } = useQuery({
     queryKey: ["escalations", clientId],
-    queryFn: () => listEscalations(clientId),
+    queryFn: () => listEscalations(clientId, token),
   })
 
   return (

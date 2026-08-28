@@ -8,8 +8,9 @@ import type {
   SignedTraceBundle,
 } from "./types"
 
-// No auth/multi-origin story yet — that's Phase 8's onboarding flow. Every
-// client gets a URL with their client_id in it (see routes/Landing.tsx).
+// No user-account system yet -- that's Phase 8's onboarding-issued
+// per-client bearer token (naib.dashboard_auth), threaded through every
+// call below explicitly rather than held as hidden global state.
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
 
 export class ApiError extends Error {
@@ -20,10 +21,14 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...init?.headers,
+    },
   })
   if (!res.ok) {
     const body = await res.text()
@@ -32,12 +37,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-export function getClient(clientId: string): Promise<ClientDetail> {
-  return request(`/clients/${clientId}`)
+export function getClient(clientId: string, token: string): Promise<ClientDetail> {
+  return request(`/clients/${clientId}`, token)
 }
 
-export function setKillSwitch(clientId: string, enabled: boolean): Promise<ClientDetail> {
-  return request(`/clients/${clientId}/kill-switch`, {
+export function setKillSwitch(
+  clientId: string,
+  enabled: boolean,
+  token: string,
+): Promise<ClientDetail> {
+  return request(`/clients/${clientId}/kill-switch`, token, {
     method: "POST",
     body: JSON.stringify({ enabled }),
   })
@@ -45,28 +54,30 @@ export function setKillSwitch(clientId: string, enabled: boolean): Promise<Clien
 
 export function listApprovals(
   clientId: string,
+  token: string,
   opts: { entityType?: string; pendingOnly?: boolean } = {},
 ): Promise<ApprovalSummary[]> {
   const params = new URLSearchParams()
   if (opts.entityType) params.set("entity_type", opts.entityType)
   params.set("pending_only", String(opts.pendingOnly ?? true))
-  return request(`/clients/${clientId}/approvals?${params.toString()}`)
+  return request(`/clients/${clientId}/approvals?${params.toString()}`, token)
 }
 
-export function listEscalations(clientId: string): Promise<Escalation[]> {
-  return request(`/clients/${clientId}/escalations`)
+export function listEscalations(clientId: string, token: string): Promise<Escalation[]> {
+  return request(`/clients/${clientId}/escalations`, token)
 }
 
-export function getClientMetrics(clientId: string): Promise<ClientMetrics> {
-  return request(`/clients/${clientId}/metrics`)
+export function getClientMetrics(clientId: string, token: string): Promise<ClientMetrics> {
+  return request(`/clients/${clientId}/metrics`, token)
 }
 
-export function getClientAutonomy(clientId: string): Promise<AutonomyStatus[]> {
-  return request(`/clients/${clientId}/autonomy`)
+export function getClientAutonomy(clientId: string, token: string): Promise<AutonomyStatus[]> {
+  return request(`/clients/${clientId}/autonomy`, token)
 }
 
 export function decideApproval(
   approvalId: string,
+  token: string,
   body: {
     decidedBy: string
     decision: Decision
@@ -74,7 +85,7 @@ export function decideApproval(
     editedDraftMd?: string
   },
 ): Promise<{ status: string }> {
-  return request(`/approvals/${approvalId}/decide`, {
+  return request(`/approvals/${approvalId}/decide`, token, {
     method: "POST",
     body: JSON.stringify({
       decided_by: body.decidedBy,
@@ -85,6 +96,6 @@ export function decideApproval(
   })
 }
 
-export function getLeadTrace(leadId: string): Promise<SignedTraceBundle> {
-  return request(`/leads/${leadId}/trace`)
+export function getLeadTrace(leadId: string, token: string): Promise<SignedTraceBundle> {
+  return request(`/leads/${leadId}/trace`, token)
 }

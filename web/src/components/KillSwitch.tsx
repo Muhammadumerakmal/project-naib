@@ -7,12 +7,12 @@ import type { ClientDetail } from "../lib/types"
 /** Always-visible, unmissable per PLAN.md Phase 7: "Kill switch, visible and
  * unmissable" and the phase gate — "a non-technical person ... stops a run,
  * unaided." One click opens a plain-language confirm, second click acts. */
-export function KillSwitch({ client }: { client: ClientDetail }) {
+export function KillSwitch({ client, token }: { client: ClientDetail; token: string }) {
   const [confirming, setConfirming] = useState(false)
   const qc = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: (enabled: boolean) => setKillSwitch(client.id, enabled),
+    mutationFn: (enabled: boolean) => setKillSwitch(client.id, enabled, token),
     onSuccess: (updated) => {
       qc.setQueryData(["client", client.id], updated)
       setConfirming(false)

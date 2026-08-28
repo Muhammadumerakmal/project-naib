@@ -8,6 +8,7 @@ what ARCHITECTURE.md lists, since an append-only event log needs an ordering
 timestamp. Flagged in the Phase 0 handoff.
 """
 
+import secrets
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -23,6 +24,10 @@ EMBEDDING_DIM = 1536
 
 def _uuid() -> uuid.UUID:
     return uuid.uuid4()
+
+
+def _dashboard_token() -> str:
+    return secrets.token_urlsafe(32)
 
 
 def _now() -> datetime:
@@ -52,6 +57,13 @@ class Client(SQLModel, table=True):
     # client instantly, mid-queue"). Phase 7 makes the dashboard button
     # real; Phase 8 owns testing it under production conditions.
     kill_switch: bool = False
+    # Phase 8: the minimum real access control the dashboard can honestly
+    # claim -- there's no user-account system yet (onboarding is operator-
+    # run, no self-serve signup), so this is a random per-client secret
+    # checked on every dashboard/API route that touches this client's data,
+    # instead of "anyone with the client_id can see and act on everything."
+    # See naib.dashboard_auth.
+    dashboard_token: str = Field(default_factory=_dashboard_token)
 
 
 class Lead(SQLModel, table=True):

@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, Loader2, Pencil, X } from "lucide-react"
 import { useState } from "react"
-import { useParams } from "react-router-dom"
+import { useOutletContext } from "react-router-dom"
 import { decideApproval, listApprovals } from "../lib/api"
 import type { ApprovalSummary, Decision } from "../lib/types"
+import type { ClientOutletContext } from "./ClientLayout"
 
 const REVIEWER_KEY = "naib.reviewer_name"
 
@@ -21,10 +22,12 @@ function useReviewerName(): [string, (v: string) => void] {
 function ApprovalCard({
   approval,
   clientId,
+  token,
   reviewer,
 }: {
   approval: ApprovalSummary
   clientId: string
+  token: string
   reviewer: string
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -34,7 +37,7 @@ function ApprovalCard({
 
   const mutation = useMutation({
     mutationFn: (args: { decision: Decision; editedDraftMd?: string }) =>
-      decideApproval(approval.id, {
+      decideApproval(approval.id, token, {
         decidedBy: reviewer || "unknown reviewer",
         decision: args.decision,
         editedDraftMd: args.editedDraftMd,
@@ -142,12 +145,13 @@ function ApprovalCard({
 }
 
 export function ApprovalQueue() {
-  const { clientId = "" } = useParams<{ clientId: string }>()
+  const { client, token } = useOutletContext<ClientOutletContext>()
+  const clientId = client.id
   const [reviewer, setReviewer] = useReviewerName()
 
   const { data: approvals, isLoading } = useQuery({
     queryKey: ["approvals", clientId],
-    queryFn: () => listApprovals(clientId, { pendingOnly: true }),
+    queryFn: () => listApprovals(clientId, token, { pendingOnly: true }),
   })
 
   return (
@@ -175,7 +179,13 @@ export function ApprovalQueue() {
 
       <div className="flex flex-col gap-3">
         {approvals?.map((a) => (
-          <ApprovalCard key={a.id} approval={a} clientId={clientId} reviewer={reviewer} />
+          <ApprovalCard
+            key={a.id}
+            approval={a}
+            clientId={clientId}
+            token={token}
+            reviewer={reviewer}
+          />
         ))}
       </div>
     </div>

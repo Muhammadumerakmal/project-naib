@@ -12,13 +12,14 @@ from contextlib import asynccontextmanager
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
-from fastapi import FastAPI, Form, HTTPException
+from fastapi import Depends, FastAPI, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlmodel import select
 
 from naib.dashboard_api import router as dashboard_router
+from naib.dashboard_auth import require_client_token_for_lead
 from naib.settings import get_settings
 from naib.store.db import get_sessionmaker
 from naib.store.models import Client, Lead
@@ -161,11 +162,15 @@ async def voice_recording(
     return Response(content=twiml, media_type="application/xml")
 
 
-@app.get("/leads/{lead_id}/trace")
+@app.get(
+    "/leads/{lead_id}/trace", dependencies=[Depends(require_client_token_for_lead)]
+)
 async def lead_trace(lead_id: uuid.UUID) -> dict[str, object]:
     """Signed JSON trace bundle for one lead — PLAN.md Phase 6, CLAUDE.md
     rule 3: 'if a client asks why did it say that, we answer with a
-    record.' Verify with naib.trace_export.verify_trace."""
+    record.' Verify with naib.trace_export.verify_trace. Dashboard-facing,
+    so it's gated the same as everything in naib.dashboard_api — see
+    naib.dashboard_auth."""
 
     async with get_sessionmaker()() as session:
         lead = (await session.exec(select(Lead).where(Lead.id == lead_id))).first()

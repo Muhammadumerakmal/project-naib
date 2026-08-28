@@ -1,24 +1,27 @@
 import { useQuery } from "@tanstack/react-query"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { getLeadTrace } from "../lib/api"
+import type { ClientOutletContext } from "./ClientLayout"
 
 function fmtCost(cost: number | null): string {
-  return cost == null ? "—" : `$${cost.toFixed(4)}`
+  return cost == null ? "—" : `US$${cost.toFixed(4)}`
 }
 
 /** Every step, guardrail outcome, and cost for one lead, in plain language
  * — PLAN.md Phase 7 / CLAUDE.md rule 3 ("if a client asks why did it say
  * that, we answer with a record"). */
 export function TraceViewer() {
-  const { clientId = "", leadId } = useParams<{ clientId: string; leadId?: string }>()
+  const { leadId } = useParams<{ leadId?: string }>()
+  const { client, token } = useOutletContext<ClientOutletContext>()
+  const clientId = client.id
   const navigate = useNavigate()
   const [inputLeadId, setInputLeadId] = useState("")
 
   const { data: bundle, isLoading, error } = useQuery({
     queryKey: ["trace", leadId],
-    queryFn: () => getLeadTrace(leadId!),
+    queryFn: () => getLeadTrace(leadId!, token),
     enabled: !!leadId,
   })
 

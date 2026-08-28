@@ -43,6 +43,14 @@ def _cmd_onboard(args: argparse.Namespace) -> None:
         channels = describe_channel_setup(client.id, base_url=args.base_url)
         print(f"client_id={client.id}")
         print(f"Installed {len(entries)} playbook entries (version {args.playbook_version}).")
+        print()
+        print("Dashboard access -- naib.dashboard_auth gates every dashboard route on this")
+        print("token. Hand the client this exact link (or the client_id + token pair, for")
+        print("the Landing page's manual fallback); there is no other way in.")
+        print(f"  {args.dashboard_url}/clients/{client.id}?token={client.dashboard_token}")
+        print(f"  client_id: {client.id}")
+        print(f"  token:     {client.dashboard_token}")
+        print()
         print("Wire these webhook URLs up at each channel provider:")
         print(f"  email:    {channels.email_webhook}")
         print(f"  whatsapp: {channels.whatsapp_webhook}")
@@ -81,7 +89,14 @@ def main() -> None:
     onboard_parser.add_argument("--playbook-version", required=True)
     onboard_parser.add_argument("--price-floor", type=int, default=0)
     onboard_parser.add_argument(
-        "--base-url", required=True, help="Deployed API's public origin, e.g. https://naib.example.com"
+        "--base-url",
+        required=True,
+        help="Deployed API's public origin, e.g. https://naib.example.com",
+    )
+    onboard_parser.add_argument(
+        "--dashboard-url",
+        required=True,
+        help="Deployed dashboard's public origin, e.g. https://app.naib.example.com",
     )
     onboard_parser.set_defaults(func=_cmd_onboard)
 

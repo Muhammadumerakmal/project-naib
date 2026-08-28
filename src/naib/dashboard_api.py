@@ -1,11 +1,20 @@
 """Read/decide endpoints behind the Phase 7 dashboard. Handlers are thin
 wrappers over naib.dashboard / naib.approvals / naib.agents.proposal_pipeline
-— see those modules for the actual logic and its tests.
+— see those modules for the actual logic and its tests. Every route below
+is gated by naib.dashboard_auth's per-client bearer token — see that
+module's docstring for why, and its scope.
+
+Judgment call: dependencies are applied per-route rather than at the
+router level. A router-level `dependencies=[...]` also gets applied to
+every route later merged in via `include_router()`, and
+`/approvals/{approval_id}/decide` has no `{client_id}` in its path — it
+needs `require_client_token_for_approval` instead, so a single router-wide
+dependency can't cover both cases correctly.
 """
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from naib.agents.proposal_pipeline import decide_proposal_approval
@@ -19,12 +28,14 @@ from naib.dashboard import (
     reject_or_decide_approval,
     set_kill_switch,
 )
+from naib.dashboard_auth import require_client_token, require_client_token_for_approval
 from naib.schemas.approval_summary import ApprovalSummary
 from naib.schemas.autonomy_status import AutonomyStatus
 from naib.schemas.client_metrics import ClientMetrics
 from naib.store.models import Client, Escalation
 
 router = APIRouter()
+_client_auth = Depends(require_client_token)
 
 
 class ClientDetail(BaseModel):
@@ -56,7 +67,7 @@ def _client_detail(client: Client) -> ClientDetail:
     )
 
 
-@router.get("/clients/{client_id}")
+@router.get("/clients/{client_id}", dependencies=[_client_auth])
 async def get_client_detail(client_id: uuid.UUID) -> ClientDetail:
     client = await get_client(client_id)
     if client is None:
@@ -64,13 +75,13 @@ async def get_client_detail(client_id: uuid.UUID) -> ClientDetail:
     return _client_detail(client)
 
 
-@router.post("/clients/{client_id}/kill-switch")
+@router.post("/clients/{client_id}/kill-switch", dependencies=[_client_auth])
 async def toggle_kill_switch(client_id: uuid.UUID, body: KillSwitchRequest) -> ClientDetail:
     client = await set_kill_switch(client_id, enabled=body.enabled)
     return _client_detail(client)
 
 
-@router.get("/clients/{client_id}/approvals")
+@router.get("/clients/{client_id}/approvals", dependencies=[_client_auth])
 async def list_approvals(
     client_id: uuid.UUID, entity_type: str | None = None, pending_only: bool = True
 ) -> list[ApprovalSummary]:
@@ -79,17 +90,17 @@ async def list_approvals(
     )
 
 
-@router.get("/clients/{client_id}/escalations")
+@router.get("/clients/{client_id}/escalations", dependencies=[_client_auth])
 async def list_escalations(client_id: uuid.UUID) -> list[Escalation]:
     return await list_client_escalations(client_id)
 
 
-@router.get("/clients/{client_id}/metrics")
+@router.get("/clients/{client_id}/metrics", dependencies=[_client_auth])
 async def client_metrics(client_id: uuid.UUID) -> ClientMetrics:
     return await get_client_metrics(client_id)
 
 
-@router.get("/clients/{client_id}/autonomy")
+@router.get("/clients/{client_id}/autonomy", dependencies=[_client_auth])
 async def client_autonomy(client_id: uuid.UUID) -> list[AutonomyStatus]:
     """Where this client stands on graduated autonomy, per action (PLAN.md
     Phase 8). Read-only status — nothing here changes what needs_approval."""
@@ -97,7 +108,10 @@ async def client_autonomy(client_id: uuid.UUID) -> list[AutonomyStatus]:
     return await compute_all_autonomy_status(client_id)
 
 
-@router.post("/approvals/{approval_id}/decide")
+@router.post(
+    "/approvals/{approval_id}/decide",
+    dependencies=[Depends(require_client_token_for_approval)],
+)
 async def decide_approval_endpoint(
     approval_id: uuid.UUID, body: DecideApprovalRequest
 ) -> dict[str, str]:

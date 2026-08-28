@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { Loader2, Lock, Unlock } from "lucide-react"
-import { useParams } from "react-router-dom"
+import { useOutletContext } from "react-router-dom"
 import {
   CartesianGrid,
   Line,
@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts"
 import { getClientAutonomy, getClientMetrics } from "../lib/api"
+import type { ClientOutletContext } from "./ClientLayout"
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -55,10 +56,10 @@ function ChartCard({
   )
 }
 
-function AutonomyPanel({ clientId }: { clientId: string }) {
+function AutonomyPanel({ clientId, token }: { clientId: string; token: string }) {
   const { data: statuses } = useQuery({
     queryKey: ["autonomy", clientId],
-    queryFn: () => getClientAutonomy(clientId),
+    queryFn: () => getClientAutonomy(clientId, token),
   })
 
   if (!statuses || statuses.length === 0) return null
@@ -88,11 +89,12 @@ function AutonomyPanel({ clientId }: { clientId: string }) {
 }
 
 export function Metrics() {
-  const { clientId = "" } = useParams<{ clientId: string }>()
+  const { client, token } = useOutletContext<ClientOutletContext>()
+  const clientId = client.id
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["metrics", clientId],
-    queryFn: () => getClientMetrics(clientId),
+    queryFn: () => getClientMetrics(clientId, token),
   })
 
   if (isLoading || !metrics) {
@@ -122,13 +124,16 @@ export function Metrics() {
           valueFormatter={(v) => `${Math.round(v * 100)}%`}
         />
         <ChartCard
-          title="Cost per lead over time"
+          title="Cost per lead over time (internal, USD)"
           data={metrics.cost_per_lead_over_time}
-          valueFormatter={(v) => `$${v.toFixed(3)}`}
+          valueFormatter={(v) => `US$${v.toFixed(3)}`}
         />
       </div>
+      <p className="mt-1 text-right text-xs text-slate-400">
+        Model spend only, in USD — see your pricing agreement for the PKR platform fee.
+      </p>
 
-      <AutonomyPanel clientId={clientId} />
+      <AutonomyPanel clientId={clientId} token={token} />
     </div>
   )
 }

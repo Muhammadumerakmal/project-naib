@@ -36,6 +36,17 @@ attacker-controlled data from the moment it arrives:
   append-only event log (`agent_events`) with an input hash — reconstructable, not a shrug, if
   you ever ask "why did it say that."
 
+## Who can see the dashboard
+
+There's no multi-user account system yet — this is a pre-second-client product, and PLAN.md is
+explicit that multi-tenant abstractions get built when a second client makes them worth
+building, not before. What exists today: every dashboard route (approval queue, trace viewer,
+escalations, kill switch) is gated by a random per-client access token, issued once at
+onboarding and required on every request — a client_id alone gets you nothing. Losing that
+token gets a client a new one from their Naib contact, not standing access. If your review
+requires full user-level accounts, audit logs of *who* viewed what, or SSO, say so — that's a
+scoped, known piece of work, not a surprise.
+
 ## The red-team suite, with its actual numbers
 
 {{REDTEAM_CORPUS_SIZE}} adversarial cases — prompt injection, delimiter escapes, price
